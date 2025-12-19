@@ -2,15 +2,16 @@ use std::path::PathBuf;
 
 use binary_rw::{BinaryError, BinaryReader, BinaryWriter, FileStream};
 use iced::{
-    Alignment, Element, Length, Task, Theme,
-    alignment::Vertical::Top,
-    border,
+    Alignment, Element, Length, Task, Theme, border,
     widget::{button, column, container, pane_grid, row, text},
 };
 use rfd::FileHandle;
 
 use crate::{
-    chart::Chart,
+    chart::{
+        Chart,
+        note::{Note, NoteExtra},
+    },
     gui::state::{ChartPane, Message, State},
 };
 
@@ -33,7 +34,17 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             Task::none()
         }
         Message::NewChart => {
-            state.loaded_chart = Some(Chart::default());
+            let mut chart = Chart::default();
+            chart.notes.push(Note {
+                kind: Note::TEMPO_CHANGE,
+                lane: 0,
+                time: 0.0,
+                extra: Some(NoteExtra::TempoChange(120.0)),
+            });
+            chart.recalc_bpm();
+
+            state.file_path = None;
+            state.loaded_chart = Some(chart);
             state.selected_note = None;
             Task::none()
         }
@@ -56,6 +67,7 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             if let Some(chart) = &state.loaded_chart {
                 match write_chart(&path, chart) {
                     Ok(()) => {
+                        state.file_path = Some(path);
                         state.file_modified = false;
                     }
                     Err(e) => {
@@ -102,13 +114,7 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             if let Some(chart) = state.loaded_chart.as_mut() {
                 chart.notes.remove(note_idx);
                 chart.recalc_bpm();
-
-                if let Some(selected_idx) = state.selected_note
-                    && selected_idx == note_idx
-                {
-                    state.selected_note = None;
-                }
-
+                state.selected_note = None;
                 Task::done(Message::ChartHasBeenModified)
             } else {
                 Task::none()
@@ -154,6 +160,49 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                     Some(new_time) => chart.notes[*selected_note_idx].time = new_time,
                     None => {}
                 }
+                chart.recalc_bpm();
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::CreateNote(time, kind, lane) => {
+            if let Some(chart) = state.loaded_chart.as_mut() {
+                chart.notes.push(Note {
+                    kind: kind,
+                    lane: lane,
+                    time: time,
+                    extra: match kind {
+                        Note::HOLD => Some(NoteExtra::HoldEndTime((time + 1000.0) as i32)),
+                        Note::TEMPO_CHANGE => Some(NoteExtra::TempoChange(120.0)),
+                        _ => None,
+                    },
+                });
+                chart.recalc_bpm();
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetHoldEndBeat(end_beat) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_note_idx) = &state.selected_note
+            {
+                let time = chart.bpm_handler.time_from_beat(end_beat).unwrap_or(0.0);
+                chart.notes[*selected_note_idx].extra = Some(NoteExtra::HoldEndTime(time as i32));
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetTempChangeValue(new_bpm) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_note_idx) = &state.selected_note
+            {
+                chart.notes[*selected_note_idx].extra = Some(NoteExtra::TempoChange(new_bpm));
                 chart.recalc_bpm();
                 Task::done(Message::ChartHasBeenModified)
             } else {

@@ -19,6 +19,7 @@ impl Note {
     pub const BUMPER: u8 = 1;
     pub const HOLD: u8 = 2;
     pub const TEMPO_CHANGE: u8 = 3;
+    pub const UNKNOWN: u8 = 4;
     pub const MINE: u8 = 6;
     pub const BUMPER_MINE: u8 = 7;
     pub const ABSOLUTE_BUMPER: u8 = 8;

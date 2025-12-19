@@ -72,6 +72,9 @@ pub enum Message {
     SetNoteKind(u8),
     NudgeLane(i8),
     NudgeBeat(f32),
+    CreateNote(f32, u8, u8),
+    SetHoldEndBeat(f32),
+    SetTempChangeValue(f32),
 }
 
 #[derive(Clone, Debug)]

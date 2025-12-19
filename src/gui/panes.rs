@@ -1,10 +1,15 @@
 use iced::{
     Element,
+    Length::Fill,
     widget::{button, canvas, column, grid, pick_list, row, scrollable, space, text},
 };
+use iced_aw::number_input;
 
 use crate::{
-    chart::note::Note,
+    chart::{
+        Chart,
+        note::{Note, NoteExtra},
+    },
     gui::state::{Message, State},
 };
 
@@ -62,17 +67,24 @@ pub fn notes(state: &State) -> Element<'_, Message> {
 
 pub fn mods(state: &State) -> Element<'_, Message> {
     if let Some(chart) = &state.loaded_chart {
-        scrollable(grid!(
-            text("meow1"),
-            text("meow2"),
-            text("meow3"),
-            text("meow4"),
-            text("meow5"),
-            text("meow6"),
-            text("meow7"),
-            text("meow8"),
-        ))
-        .into()
+        if chart.gimmick.mods.is_empty() {
+            text("This chart has no modifiers")
+                .center()
+                .style(text::secondary)
+                .into()
+        } else {
+            scrollable(grid!(
+                text("meow1"),
+                text("meow2"),
+                text("meow3"),
+                text("meow4"),
+                text("meow5"),
+                text("meow6"),
+                text("meow7"),
+                text("meow8"),
+            ))
+            .into()
+        }
     } else {
         text("No chart").into()
     }
@@ -80,17 +92,24 @@ pub fn mods(state: &State) -> Element<'_, Message> {
 
 pub fn per_frames(state: &State) -> Element<'_, Message> {
     if let Some(chart) = &state.loaded_chart {
-        scrollable(grid!(
-            text("arf1"),
-            text("arf2"),
-            text("arf3"),
-            text("arf4"),
-            text("arf5"),
-            text("arf6"),
-            text("arf7"),
-            text("arf8"),
-        ))
-        .into()
+        if chart.gimmick.per_frames.is_empty() {
+            text("This chart has no per-frames")
+                .center()
+                .style(text::secondary)
+                .into()
+        } else {
+            scrollable(grid!(
+                text("meow1"),
+                text("meow2"),
+                text("meow3"),
+                text("meow4"),
+                text("meow5"),
+                text("meow6"),
+                text("meow7"),
+                text("meow8"),
+            ))
+            .into()
+        }
     } else {
         text("No chart").into()
     }
@@ -109,20 +128,58 @@ pub fn note_edit(state: &State) -> Element<'_, Message> {
             Note::BUMPER_MINE,
             Note::ABSOLUTE_BUMPER,
             Note::TEMPO_CHANGE,
+            Note::UNKNOWN,
         ];
 
         column![
             text!("Selected note").size(20),
             space(),
-            text("Type:"),
-            pick_list(note_types, Some(selected_note.kind), Message::SetNoteKind)
+            text!(
+                "{} beats",
+                chart
+                    .bpm_handler
+                    .beat_from_time(selected_note.time)
+                    .unwrap_or(0.0)
+            ),
+            text!("{} ms", selected_note.time),
+            pick_list(note_types, Some(selected_note.kind), Message::SetNoteKind).width(Fill),
+            note_extra_edit(chart, selected_note),
         ]
         .spacing(10)
         .into()
     } else {
-        text("Left click to select notes, right click to remove them.")
+        text("Left click to select notes,\nright click to remove them.\n\nShift-click to add notes,\nand hold alt to disable snapping.")
             .center()
             .style(text::secondary)
             .into()
+    }
+}
+
+fn note_extra_edit<'a>(chart: &Chart, note: &Note) -> Element<'a, Message> {
+    match &note.extra {
+        None => text("This note has no extra data")
+            .style(text::secondary)
+            .into(),
+        Some(extra) => match extra {
+            NoteExtra::HoldEndTime(time) => {
+                let start_beat = chart.bpm_handler.beat_from_time(note.time).unwrap_or(0.0);
+                let end_beat = chart
+                    .bpm_handler
+                    .beat_from_time(*time as f32)
+                    .unwrap_or(0.0);
+                let duration_beats = end_beat - start_beat;
+
+                number_input(&duration_beats, 0.0..256.0, move |new_dur| {
+                    Message::SetHoldEndBeat(start_beat + new_dur)
+                })
+                .width(Fill)
+                .into()
+            }
+            NoteExtra::TempoChange(new_bpm) => {
+                number_input(new_bpm, 0.0..500.0, Message::SetTempChangeValue)
+                    .width(Fill)
+                    .into()
+            }
+        },
     }
 }

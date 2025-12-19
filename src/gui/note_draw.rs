@@ -1,16 +1,15 @@
-use iced::{
-    Rectangle, Renderer, Theme, color,
-    keyboard::key,
-    mouse,
-    widget::{self, canvas},
-};
-
 use crate::{
     chart::{
         Chart,
         note::{Note, NoteExtra},
     },
     gui::state::Message,
+};
+use iced::{
+    Rectangle, Renderer, Theme, color,
+    keyboard::{Modifiers, key},
+    mouse,
+    widget::{self, canvas},
 };
 
 pub struct NoteDrawState {
@@ -20,6 +19,10 @@ pub struct NoteDrawState {
     note_height: f32,
     units_per_ms: f32,
     x_padding: f32,
+
+    place_notes: bool,
+    disable_snapping: bool,
+    current_note_kind: u8,
 }
 
 impl Default for NoteDrawState {
@@ -31,6 +34,10 @@ impl Default for NoteDrawState {
             note_height: 20.0,
             units_per_ms: 0.25,
             x_padding: 2.5,
+
+            place_notes: false,
+            disable_snapping: false,
+            current_note_kind: Note::CHIP,
         }
     }
 }
@@ -72,8 +79,27 @@ impl canvas::Program<Message> for Chart {
                     return Some(widget::Action::publish(Message::NudgeLane(1)));
                 }
 
+                key::Key::Character(ch) => {
+                    state.current_note_kind = match ch.as_str() {
+                        "q" => Note::CHIP,
+                        "w" => Note::HOLD,
+                        "e" => Note::MINE,
+                        "r" => Note::BUMPER,
+                        "a" => Note::TEMPO_CHANGE,
+                        "s" => Note::ABSOLUTE_BUMPER,
+                        "d" => Note::BUMPER_MINE,
+                        "f" => Note::UNKNOWN,
+                        _ => Note::CHIP,
+                    }
+                }
+
                 _ => {}
             },
+
+            iced::Event::Keyboard(iced::keyboard::Event::ModifiersChanged(modifiers)) => {
+                state.place_notes = modifiers.contains(Modifiers::SHIFT);
+                state.disable_snapping = state.place_notes && modifiers.contains(Modifiers::ALT);
+            }
 
             iced::Event::Mouse(iced::mouse::Event::WheelScrolled { delta }) => {
                 state.scroll_pos += match delta {
@@ -85,6 +111,25 @@ impl canvas::Program<Message> for Chart {
             iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
                 if let Some(note_idx) = get_hovered_note(&self, &state, &cursor, bounds) {
                     return Some(widget::Action::publish(Message::SelectNote(note_idx)));
+                } else if state.place_notes
+                    && let Some(beat) = mouse_y_to_beat(&self, &state, &cursor, bounds)
+                    && let Some(lane) = mouse_x_to_lane(&state, &cursor, bounds)
+                {
+                    let snapped_time = if state.disable_snapping {
+                        self.bpm_handler.time_from_beat(beat)
+                    } else {
+                        self.bpm_handler.time_from_beat(beat.round())
+                    };
+                    match snapped_time {
+                        Some(t) => {
+                            return Some(widget::Action::publish(Message::CreateNote(
+                                t,
+                                state.current_note_kind,
+                                lane,
+                            )));
+                        }
+                        None => {}
+                    }
                 } else if cursor.is_over(bounds) {
                     return Some(widget::Action::publish(Message::DeselectNote));
                 }
@@ -129,7 +174,10 @@ impl canvas::Program<Message> for Chart {
 
         let mut marker_beat: f32 = 0.0;
         loop {
-            let time = &self.bpm_handler.time_from_beat(marker_beat).unwrap_or(-1.0);
+            let time = match self.bpm_handler.time_from_beat(marker_beat) {
+                Some(t) => t,
+                None => break,
+            };
             marker_beat += 1.0;
 
             let y_pos = time * state.units_per_ms + state.scroll_pos;
@@ -248,4 +296,25 @@ fn get_hovered_note(
         }
     }
     None
+}
+
+fn mouse_y_to_beat(
+    chart: &Chart,
+    state: &NoteDrawState,
+    cursor: &mouse::Cursor,
+    bounds: Rectangle<f32>,
+) -> Option<f32> {
+    let mouse = cursor.position_in(bounds)?;
+    let time = (mouse.y - state.scroll_pos) / state.units_per_ms;
+    chart.bpm_handler.beat_from_time(time)
+}
+
+fn mouse_x_to_lane(
+    state: &NoteDrawState,
+    cursor: &mouse::Cursor,
+    bounds: Rectangle<f32>,
+) -> Option<u8> {
+    let mouse = cursor.position_in(bounds)?;
+    let lane = (mouse.x / state.lane_width) as u8;
+    if lane < 4 { Some(lane) } else { None }
 }
