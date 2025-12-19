@@ -1,5 +1,8 @@
+use std::io;
+
 use crate::gui::state::State;
 use iced::window::{self, icon};
+use image::ImageReader;
 use log::info;
 
 mod chart;
@@ -10,9 +13,8 @@ fn main() -> iced::Result {
     env_logger::Builder::from_env(env).init();
     info!("Starting");
 
-    let icon_bytes = include_bytes!("ce_icon.png");
     let window = window::Settings {
-        icon: icon::from_file_data(icon_bytes, None).ok(),
+        icon: load_embedded_icon(),
         ..Default::default()
     };
 
@@ -22,4 +24,14 @@ fn main() -> iced::Result {
         .theme(gui::theme)
         .window_size(iced::Size::new(1280.0, 720.0))
         .run()
+}
+
+fn load_embedded_icon() -> Option<icon::Icon> {
+    let icon_data = io::Cursor::new(include_bytes!("ce_icon.png"));
+
+    let mut icon_reader = ImageReader::new(icon_data);
+    icon_reader.set_format(image::ImageFormat::Png);
+
+    let icon = icon_reader.decode().ok()?.into_rgba8();
+    icon::from_rgba(icon.to_vec(), icon.width(), icon.height()).ok()
 }

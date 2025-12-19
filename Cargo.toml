@@ -6,7 +6,8 @@ edition = "2024"
 [dependencies]
 binary_rw = "4.1.0"
 env_logger = "0.11.8"
-iced = { version = "0.14.0", features = ["canvas", "image"] }
-iced_aw = { version = "0.13.0", features = ["menu", "number_input", "quad"] }
+image ={ version = "0.25.9", default-features = false, features = ["png"] }
+iced = { version = "0.14.0", features = ["canvas"] }
+iced_aw = { version = "0.13.0", features = ["number_input"] }
 log = "0.4.29"
 rfd = "0.16.0"
