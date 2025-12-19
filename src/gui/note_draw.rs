@@ -85,7 +85,7 @@ impl canvas::Program<Message> for Chart {
             iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
                 if let Some(note_idx) = get_hovered_note(&self, &state, &cursor, bounds) {
                     return Some(widget::Action::publish(Message::SelectNote(note_idx)));
-                } else {
+                } else if cursor.is_over(bounds) {
                     return Some(widget::Action::publish(Message::DeselectNote));
                 }
             }

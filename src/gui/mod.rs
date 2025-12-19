@@ -109,6 +109,7 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                     Some(new_time) => chart.notes[*selected_note_idx].time = new_time,
                     None => {}
                 }
+                chart.recalc_bpm();
             }
             Task::none()
         }

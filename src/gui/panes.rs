@@ -12,9 +12,18 @@ pub fn info(state: &State) -> Element<'_, Message> {
     let open_file_name = state
         .file_path
         .as_ref()
-        .and_then(|p| p.file_name())
-        .and_then(|s| s.to_str())
-        .unwrap_or("<none>");
+        .map(|p| {
+            let mut paths: Vec<&str> = p
+                .ancestors()
+                .take(2)
+                .filter_map(|it| it.file_name().and_then(|f| f.to_str()))
+                .collect();
+            paths.reverse();
+            paths
+        })
+        .map(|p| p.join(" / "))
+        .unwrap_or_else(|| "(none)".to_owned());
+
     let modified_mark = if state.file_modified { " (*)" } else { "" };
 
     if let Some(chart) = &state.loaded_chart {
