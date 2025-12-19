@@ -22,6 +22,18 @@ impl Chart {
         self.bpm_handler = bpm_handler;
     }
 
+    pub fn sort_notes(&mut self) {
+        self.notes.sort_by(|a, b| {
+            if a.time < b.time {
+                std::cmp::Ordering::Less
+            } else if a.time > b.time {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+    }
+
     pub fn read_binary(r: &mut BinaryReader) -> Result<Self, BinaryError> {
         let mut chart = Self::default();
 
@@ -51,6 +63,7 @@ impl Chart {
             }
         }
 
+        chart.sort_notes();
         chart.recalc_bpm();
         Ok(chart)
     }

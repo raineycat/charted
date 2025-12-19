@@ -64,7 +64,10 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
         }
         Message::SaveChartCancelled => Task::none(),
         Message::SaveChartAs(path) => {
-            if let Some(chart) = &state.loaded_chart {
+            if let Some(chart) = state.loaded_chart.as_mut() {
+                chart.sort_notes();
+                state.selected_note = None;
+
                 match write_chart(&path, chart) {
                     Ok(()) => {
                         state.file_path = Some(path);
