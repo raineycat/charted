@@ -56,6 +56,11 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             Task::none()
         }
 
+        Message::DeselectNote => {
+            state.selected_note = None;
+            Task::none()
+        }
+
         Message::RemoveNote(note_idx) => {
             if let Some(chart) = state.loaded_chart.as_mut() {
                 chart.notes.remove(note_idx);
@@ -65,6 +70,44 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                     && selected_idx == note_idx
                 {
                     state.selected_note = None;
+                }
+            }
+            Task::none()
+        }
+
+        Message::SetNoteKind(kind) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_note_idx) = &state.selected_note
+            {
+                chart.notes[*selected_note_idx].kind = kind;
+            }
+            Task::none()
+        }
+
+        Message::NudgeLane(amount) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_note_idx) = &state.selected_note
+            {
+                let mut prev_lane = chart.notes[*selected_note_idx].lane as i8;
+                prev_lane = (prev_lane + amount).clamp(0, 4);
+                chart.notes[*selected_note_idx].lane = prev_lane as u8;
+            }
+            Task::none()
+        }
+
+        Message::NudgeBeat(amount) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_note_idx) = &state.selected_note
+            {
+                let prev_time = chart.notes[*selected_note_idx].time;
+                match chart
+                    .bpm_handler
+                    .beat_from_time(prev_time)
+                    .map(|b| b + amount)
+                    .and_then(|b| chart.bpm_handler.time_from_beat(b))
+                {
+                    Some(new_time) => chart.notes[*selected_note_idx].time = new_time,
+                    None => {}
                 }
             }
             Task::none()
@@ -79,7 +122,8 @@ pub fn view(state: &State) -> Element<'_, Message> {
                 ChartPane::InfoPane => panes::info(state),
                 ChartPane::NotePane => panes::notes(state),
                 ChartPane::ModPane => panes::mods(state),
-                _ => text!("meowww").into(),
+                ChartPane::PerFramePane => panes::per_frames(state),
+                ChartPane::NoteEditPane => panes::note_edit(state),
             })
             .style(|theme| container::Style {
                 border: iced::Border {

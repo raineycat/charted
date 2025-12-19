@@ -1,9 +1,12 @@
 use iced::{
     Element,
-    widget::{canvas, column, grid, scrollable, space, text},
+    widget::{canvas, column, grid, pick_list, scrollable, space, text},
 };
 
-use crate::gui::state::{Message, State};
+use crate::{
+    chart::note::Note,
+    gui::state::{Message, State},
+};
 
 pub fn info(state: &State) -> Element<'_, Message> {
     let open_file_name = state
@@ -57,5 +60,54 @@ pub fn mods(state: &State) -> Element<'_, Message> {
         .into()
     } else {
         text("No chart").into()
+    }
+}
+
+pub fn per_frames(state: &State) -> Element<'_, Message> {
+    if let Some(chart) = &state.loaded_chart {
+        scrollable(grid!(
+            text("arf1"),
+            text("arf2"),
+            text("arf3"),
+            text("arf4"),
+            text("arf5"),
+            text("arf6"),
+            text("arf7"),
+            text("arf8"),
+        ))
+        .into()
+    } else {
+        text("No chart").into()
+    }
+}
+
+pub fn note_edit(state: &State) -> Element<'_, Message> {
+    if let Some(chart) = &state.loaded_chart
+        && let Some(selected_note_idx) = &state.selected_note
+    {
+        let selected_note = &chart.notes[*selected_note_idx];
+        let note_types = [
+            Note::CHIP,
+            Note::MINE,
+            Note::HOLD,
+            Note::BUMPER,
+            Note::BUMPER_MINE,
+            Note::ABSOLUTE_BUMPER,
+            Note::TEMPO_CHANGE,
+        ];
+
+        column![
+            text!("Selected note").size(20),
+            space(),
+            text("Type:"),
+            pick_list(note_types, Some(selected_note.kind), Message::SetNoteKind)
+        ]
+        .spacing(10)
+        .into()
+    } else {
+        text("Left click to add or select notes, right click to remove them.")
+            .center()
+            .style(text::secondary)
+            .into()
     }
 }

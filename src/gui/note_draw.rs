@@ -55,9 +55,23 @@ impl canvas::Program<Message> for Chart {
                 text: _,
                 repeat: _,
             }) => match key {
-                key::Key::Named(key::Named::Home) => state.scroll_pos = 0.0,
-                key::Key::Named(key::Named::ArrowUp) => state.scroll_pos += state.note_height,
-                key::Key::Named(key::Named::ArrowDown) => state.scroll_pos -= state.note_height,
+                key::Key::Named(key::Named::Home) => state.scroll_pos = 0.,
+                key::Key::Named(key::Named::PageUp) => state.scroll_pos += state.note_height * 8.,
+                key::Key::Named(key::Named::PageDown) => state.scroll_pos -= state.note_height * 8.,
+
+                key::Key::Named(key::Named::ArrowUp) => {
+                    return Some(widget::Action::publish(Message::NudgeBeat(-0.25)));
+                }
+                key::Key::Named(key::Named::ArrowDown) => {
+                    return Some(widget::Action::publish(Message::NudgeBeat(0.25)));
+                }
+                key::Key::Named(key::Named::ArrowLeft) => {
+                    return Some(widget::Action::publish(Message::NudgeLane(-1)));
+                }
+                key::Key::Named(key::Named::ArrowRight) => {
+                    return Some(widget::Action::publish(Message::NudgeLane(1)));
+                }
+
                 _ => {}
             },
 
@@ -71,6 +85,8 @@ impl canvas::Program<Message> for Chart {
             iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
                 if let Some(note_idx) = get_hovered_note(&self, &state, &cursor, bounds) {
                     return Some(widget::Action::publish(Message::SelectNote(note_idx)));
+                } else {
+                    return Some(widget::Action::publish(Message::DeselectNote));
                 }
             }
 

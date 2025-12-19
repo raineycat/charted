@@ -24,7 +24,12 @@ impl Default for State {
             panes: pane_grid::State::with_configuration(pane_grid::Configuration::Split {
                 axis: pane_grid::Axis::Vertical,
                 ratio: 0.2,
-                a: Box::new(pane_grid::Configuration::Pane(ChartPane::InfoPane)),
+                a: Box::new(pane_grid::Configuration::Split {
+                    axis: pane_grid::Axis::Horizontal,
+                    ratio: 0.45,
+                    a: Box::new(pane_grid::Configuration::Pane(ChartPane::InfoPane)),
+                    b: Box::new(pane_grid::Configuration::Pane(ChartPane::NoteEditPane)),
+                }),
                 b: Box::new(pane_grid::Configuration::Split {
                     axis: pane_grid::Axis::Vertical,
                     ratio: 0.45,
@@ -55,7 +60,12 @@ pub enum Message {
     PaneResized(pane_grid::ResizeEvent),
 
     SelectNote(usize),
+    DeselectNote,
     RemoveNote(usize),
+
+    SetNoteKind(u8),
+    NudgeLane(i8),
+    NudgeBeat(f32),
 }
 
 #[derive(Clone, Debug)]
@@ -64,4 +74,5 @@ pub enum ChartPane {
     NotePane,
     ModPane,
     PerFramePane,
+    NoteEditPane,
 }
