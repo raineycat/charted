@@ -1,13 +1,16 @@
 use iced::{
-    Renderer, Theme, color,
+    Rectangle, Renderer, Theme, color,
     keyboard::key,
     mouse,
     widget::{self, canvas},
 };
 
-use crate::chart::{
-    Chart,
-    note::{Note, NoteExtra},
+use crate::{
+    chart::{
+        Chart,
+        note::{Note, NoteExtra},
+    },
+    gui::state::Message,
 };
 
 pub struct NoteDrawState {
@@ -32,7 +35,7 @@ impl Default for NoteDrawState {
     }
 }
 
-impl<Message> canvas::Program<Message> for Chart {
+impl canvas::Program<Message> for Chart {
     type State = NoteDrawState;
 
     fn update(
@@ -40,7 +43,7 @@ impl<Message> canvas::Program<Message> for Chart {
         state: &mut Self::State,
         event: &iced::Event,
         bounds: iced::Rectangle,
-        _cursor: mouse::Cursor,
+        cursor: mouse::Cursor,
     ) -> Option<canvas::Action<Message>> {
         match event {
             iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
@@ -65,11 +68,23 @@ impl<Message> canvas::Program<Message> for Chart {
                 };
             }
 
+            iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
+                if let Some(note_idx) = get_hovered_note(&self, &state, &cursor, bounds) {
+                    return Some(widget::Action::publish(Message::SelectNote(note_idx)));
+                }
+            }
+
+            iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Right)) => {
+                if let Some(note_idx) = get_hovered_note(&self, &state, &cursor, bounds) {
+                    return Some(widget::Action::publish(Message::RemoveNote(note_idx)));
+                }
+            }
+
             _ => {}
         }
 
-        state.lane_width = (bounds.width * 0.8) / 4.0;
-        state.gutter_width = bounds.width * 0.2;
+        state.lane_width = (bounds.width * 0.85) / 4.0;
+        state.gutter_width = bounds.width * 0.15;
         Some(widget::Action::request_redraw())
     }
 
@@ -99,6 +114,8 @@ impl<Message> canvas::Program<Message> for Chart {
         let mut marker_beat: f32 = 0.0;
         loop {
             let time = &self.bpm_handler.time_from_beat(marker_beat).unwrap_or(-1.0);
+            marker_beat += 1.0;
+
             let y_pos = time * state.units_per_ms + state.scroll_pos;
             if y_pos > bounds.height {
                 break;
@@ -108,38 +125,16 @@ impl<Message> canvas::Program<Message> for Chart {
                 iced::Point::new(0.0, y_pos),
                 iced::Point::new(bounds.width, y_pos),
             );
-            frame.stroke(&marker, marker_stroke.with_width(1.0));
+            frame.stroke(&marker, marker_stroke.with_width(0.5));
 
             let mut beat_label = canvas::Text::from(format!("{marker_beat}"));
             beat_label.color = theme.palette().text;
             beat_label.position =
-                iced::Point::new(bounds.width - state.gutter_width + 3.0, y_pos + 1.5);
+                iced::Point::new(bounds.width - state.gutter_width + 5.0, y_pos + 1.5);
             frame.fill_text(beat_label);
-
-            marker_beat += 1.0;
         }
 
         for note in &self.notes {
-            let pos = iced::Point::new(
-                note.lane as f32 * state.lane_width + state.x_padding,
-                note.time * state.units_per_ms + state.scroll_pos,
-            );
-
-            let width_mult = match note.kind {
-                Note::BUMPER | Note::BUMPER_MINE | Note::ABSOLUTE_BUMPER => 2.0,
-                Note::TEMPO_CHANGE => 4.0,
-                _ => 1.0,
-            };
-
-            let mut size = iced::Size::new(
-                (state.lane_width * width_mult) - (state.x_padding * 2.0),
-                state.note_height,
-            );
-
-            if let Some(NoteExtra::HoldEndTime(end_time)) = note.extra {
-                size.height = (end_time as f32 - note.time) * state.units_per_ms;
-            }
-
             let color_val = match note.kind {
                 Note::CHIP | Note::HOLD | Note::BUMPER | Note::ABSOLUTE_BUMPER => {
                     get_lane_color(note.lane)
@@ -149,6 +144,7 @@ impl<Message> canvas::Program<Message> for Chart {
                 _ => color!(0xFF00FF),
             };
 
+            let (pos, size) = calc_note_display(&state, &note);
             frame.fill_rectangle(pos, size, canvas::Fill::from(color_val));
         }
 
@@ -163,17 +159,20 @@ impl<Message> canvas::Program<Message> for Chart {
                 .time_from_beat(modifier.start_beat + modifier.duration)
                 .unwrap_or(-1.0);
 
-            let gutter_portion: f32 = 1.0 / 3.0;
-            let pos = iced::Point::new(
+            let gutter_portion: f32 = 1.0 / 4.0;
+            let start = iced::Point::new(
                 bounds.width - (state.gutter_width * gutter_portion) + state.x_padding,
                 start_time * state.units_per_ms + state.scroll_pos,
             );
-            let size = iced::Size::new(
-                (state.gutter_width * gutter_portion) - (state.x_padding * 2.0),
-                *end_time * state.units_per_ms,
-            );
+            let end = start + iced::Vector::new(0.0, (*end_time - start_time) * state.units_per_ms);
+            let width = (state.gutter_width * gutter_portion) - (state.x_padding * 2.0);
 
-            frame.fill_rectangle(pos, size, canvas::Fill::from(color!(0x96ff9d)));
+            let line = canvas::Path::line(start, end);
+            let stroke = canvas::Stroke::default()
+                .with_color(color!(0x96ff9d))
+                .with_width(width)
+                .with_line_cap(canvas::LineCap::Round);
+            frame.stroke(&line, stroke);
         }
 
         vec![frame.into_geometry()]
@@ -186,4 +185,51 @@ fn get_lane_color(lane: u8) -> iced::Color {
         2 | 3 => color!(0xffcbf9),
         _ => color!(0xff00ff),
     }
+}
+
+fn calc_note_display(state: &NoteDrawState, note: &Note) -> (iced::Point, iced::Size) {
+    let pos = iced::Point::new(
+        note.lane as f32 * state.lane_width + state.x_padding,
+        note.time * state.units_per_ms + state.scroll_pos,
+    );
+
+    let width_mult = match note.kind {
+        Note::BUMPER | Note::BUMPER_MINE | Note::ABSOLUTE_BUMPER => 2.0,
+        Note::TEMPO_CHANGE => 4.0,
+        _ => 1.0,
+    };
+
+    let mut size = iced::Size::new(
+        (state.lane_width * width_mult) - (state.x_padding * 2.0),
+        state.note_height,
+    );
+
+    if let Some(NoteExtra::HoldEndTime(end_time)) = note.extra {
+        size.height = (end_time as f32 - note.time) * state.units_per_ms;
+    }
+
+    (pos, size)
+}
+
+fn get_hovered_note(
+    chart: &Chart,
+    state: &NoteDrawState,
+    cursor: &mouse::Cursor,
+    bounds: Rectangle<f32>,
+) -> Option<usize> {
+    let mouse = cursor.position_in(bounds)?;
+
+    for i in 0..chart.notes.len() {
+        let note = &chart.notes[i];
+        let (pos, size) = calc_note_display(&state, &note);
+        let max_pos = iced::Point {
+            x: pos.x + size.width,
+            y: pos.y + size.height,
+        };
+
+        if mouse.x > pos.x && mouse.y > pos.y && mouse.x < max_pos.x && mouse.y < max_pos.y {
+            return Some(i);
+        }
+    }
+    None
 }

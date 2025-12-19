@@ -30,11 +30,13 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
         }
         Message::NewChart => {
             state.loaded_chart = Some(Chart::default());
+            state.selected_note = None;
             Task::none()
         }
         Message::LoadedChart(path, c) => {
             state.file_path = Some(path);
             state.loaded_chart = Some(c);
+            state.selected_note = None;
             Task::none()
         }
 
@@ -48,6 +50,25 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             state.panes.resize(e.split, e.ratio);
             Task::none()
         }
+
+        Message::SelectNote(note_idx) => {
+            state.selected_note = Some(note_idx);
+            Task::none()
+        }
+
+        Message::RemoveNote(note_idx) => {
+            if let Some(chart) = state.loaded_chart.as_mut() {
+                chart.notes.remove(note_idx);
+                chart.recalc_bpm();
+
+                if let Some(selected_idx) = state.selected_note
+                    && selected_idx == note_idx
+                {
+                    state.selected_note = None;
+                }
+            }
+            Task::none()
+        }
     }
 }
 
@@ -57,6 +78,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
             pane_grid::Content::new(match pane_type {
                 ChartPane::InfoPane => panes::info(state),
                 ChartPane::NotePane => panes::notes(state),
+                ChartPane::ModPane => panes::mods(state),
                 _ => text!("meowww").into(),
             })
             .style(|theme| container::Style {

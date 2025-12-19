@@ -2,11 +2,12 @@ use std::path::PathBuf;
 
 use iced::widget::pane_grid;
 
-use crate::chart::{Chart, bpm_handler::BpmHandler};
+use crate::chart::Chart;
 
 pub struct State {
     pub file_path: Option<PathBuf>,
     pub loaded_chart: Option<Chart>,
+    pub selected_note: Option<usize>,
     pub file_modified: bool,
     pub error_msg: Option<String>,
     pub panes: pane_grid::State<ChartPane>,
@@ -17,6 +18,7 @@ impl Default for State {
         Self {
             file_path: None,
             loaded_chart: None,
+            selected_note: None,
             file_modified: false,
             error_msg: None,
             panes: pane_grid::State::with_configuration(pane_grid::Configuration::Split {
@@ -51,6 +53,9 @@ pub enum Message {
 
     PaneDragged(pane_grid::DragEvent),
     PaneResized(pane_grid::ResizeEvent),
+
+    SelectNote(usize),
+    RemoveNote(usize),
 }
 
 #[derive(Clone, Debug)]

@@ -12,6 +12,10 @@ pub struct BpmHandler {
 }
 
 impl BpmHandler {
+    pub fn count_changes(&self) -> usize {
+        self.changes.len()
+    }
+
     pub fn add_changes_from_chart(&mut self, chart: &Chart) {
         let mut bpm: f32 = 0.0;
         let mut last_change_time: f32 = 0.0;

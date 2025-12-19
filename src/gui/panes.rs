@@ -1,6 +1,6 @@
 use iced::{
     Element,
-    widget::{canvas, column, space, text},
+    widget::{canvas, column, grid, scrollable, space, text},
 };
 
 use crate::gui::state::{Message, State};
@@ -18,7 +18,10 @@ pub fn info(state: &State) -> Element<'_, Message> {
         column![
             text!("{open_file_name}{modified_mark}").size(20),
             space(),
+            text!("refs: {}", chart.gimmick.gm_object_name),
+            space(),
             text!("- {} notes", chart.notes.len()),
+            text!("- {} tempo changes", chart.bpm_handler.count_changes()),
             text!("- {} mods", chart.gimmick.mods.len()),
             text!("- {} per-frames", chart.gimmick.per_frames.len()),
             text!("- {} proxies", chart.gimmick.proxies),
@@ -34,6 +37,24 @@ pub fn info(state: &State) -> Element<'_, Message> {
 pub fn notes(state: &State) -> Element<'_, Message> {
     if let Some(chart) = &state.loaded_chart {
         canvas(chart).into()
+    } else {
+        text("No chart").into()
+    }
+}
+
+pub fn mods(state: &State) -> Element<'_, Message> {
+    if let Some(chart) = &state.loaded_chart {
+        scrollable(grid!(
+            text("meow1"),
+            text("meow2"),
+            text("meow3"),
+            text("meow4"),
+            text("meow5"),
+            text("meow6"),
+            text("meow7"),
+            text("meow8"),
+        ))
+        .into()
     } else {
         text("No chart").into()
     }
