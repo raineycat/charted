@@ -1,0 +1,56 @@
+#[derive(Debug, Clone, Default)]
+pub enum Easing {
+    #[default]
+    Linear,
+
+    OutElastic,
+    OutBack,
+    OutQuart,
+
+    InExpo,
+    OutExpo,
+    InOutExpo,
+
+    InQuad,
+    OutQuad,
+    InOutQuad,
+
+    InCubic,
+    OutCubic,
+    InOutCubic,
+
+    InSine,
+    OutSine,
+    InOutSine,
+
+    InCirc,
+    OutCirc,
+    InOutCirc,
+}
+
+impl Easing {
+    pub(crate) fn from_byte(b: u8) -> Option<Easing> {
+        match b {
+            1 => Some(Self::Linear),
+            2 => Some(Self::OutElastic),
+            3 => Some(Self::InExpo),
+            4 => Some(Self::OutExpo),
+            5 => Some(Self::InOutExpo),
+            6 => Some(Self::InQuad),
+            7 => Some(Self::OutQuad),
+            8 => Some(Self::InOutQuad),
+            9 => Some(Self::InCubic),
+            10 => Some(Self::OutCubic),
+            11 => Some(Self::InOutCubic),
+            12 => Some(Self::OutBack),
+            13 => Some(Self::InSine),
+            14 => Some(Self::OutSine),
+            15 => Some(Self::InOutSine),
+            16 => Some(Self::OutQuart),
+            17 => Some(Self::InOutCirc),
+            18 => Some(Self::InCirc),
+            19 => Some(Self::OutCirc),
+            _ => None,
+        }
+    }
+}
