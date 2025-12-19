@@ -1,6 +1,6 @@
-use binary_rw::{BinaryError, BinaryReader};
+use binary_rw::{BinaryError, BinaryReader, BinaryWriter};
 
-use crate::chart::{easing::Easing, terminated_string::ReadTerminatedString};
+use crate::chart::{easing::Easing, terminated_string::*};
 
 #[derive(Debug, Clone)]
 pub struct Gimmick {
@@ -54,6 +54,28 @@ impl Gimmick {
         }
         Ok(gimmick)
     }
+
+    pub(crate) fn write_binary(&self, w: &mut BinaryWriter) -> Result<(), BinaryError> {
+        w.write_u8(0xE0)?; // gimmick start
+
+        w.write_u8(0xE4)?; // proxy count
+        w.write_u8(self.proxies)?;
+
+        w.write_u8(0xE5)?; // GM:S object name
+        w.write_null_terminated_string(&self.gm_object_name)?;
+
+        w.write_u8(0xE2)?; // start of mods/per-frames
+        for modifier in &self.mods {
+            modifier.write_binary(w)?;
+        }
+        for pf in &self.per_frames {
+            pf.write_binary(w)?;
+        }
+        w.write_u8(0xE3)?; // end of mods/per-frames
+
+        w.write_u8(0xE1)?; // gimmick end
+        Ok(())
+    }
 }
 
 impl Default for Gimmick {
@@ -79,6 +101,18 @@ impl Modifier {
             proxy_index: r.read_i8()?,
         })
     }
+
+    pub(crate) fn write_binary(&self, w: &mut BinaryWriter) -> Result<(), BinaryError> {
+        w.write_u8(0xE9)?; // modifier start
+        w.write_f32(self.start_beat)?;
+        w.write_f32(self.duration)?;
+        w.write_u8(self.ease.to_byte())?;
+        w.write_f32(self.start_val)?;
+        w.write_f32(self.end_val)?;
+        w.write_u8(self.kind)?;
+        w.write_i8(self.proxy_index)?;
+        Ok(())
+    }
 }
 
 impl PerFrame {
@@ -88,5 +122,13 @@ impl PerFrame {
             end_beat: r.read_f32()?,
             gm_function: r.read_null_terminated_string()?,
         })
+    }
+
+    pub(crate) fn write_binary(&self, w: &mut BinaryWriter) -> Result<(), BinaryError> {
+        w.write_u8(0xEC)?; // per-frame start
+        w.write_f32(self.start_beat)?;
+        w.write_f32(self.end_beat)?;
+        w.write_null_terminated_string(&self.gm_function)?;
+        Ok(())
     }
 }

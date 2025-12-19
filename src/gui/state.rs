@@ -56,6 +56,12 @@ pub enum Message {
     NewChart,
     LoadedChart(PathBuf, Chart),
 
+    SaveChart,
+    SaveChartCancelled,
+    SaveChartAs(PathBuf),
+    CloseChart,
+    ChartHasBeenModified,
+
     PaneDragged(pane_grid::DragEvent),
     PaneResized(pane_grid::ResizeEvent),
 

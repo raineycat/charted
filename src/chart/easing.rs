@@ -53,4 +53,28 @@ impl Easing {
             _ => None,
         }
     }
+
+    pub(crate) fn to_byte(&self) -> u8 {
+        match self {
+            Self::Linear => 1,
+            Self::OutElastic => 2,
+            Self::InExpo => 3,
+            Self::OutExpo => 4,
+            Self::InOutExpo => 5,
+            Self::InQuad => 6,
+            Self::OutQuad => 7,
+            Self::InOutQuad => 8,
+            Self::InCubic => 9,
+            Self::OutCubic => 10,
+            Self::InOutCubic => 11,
+            Self::OutBack => 12,
+            Self::InSine => 13,
+            Self::OutSine => 14,
+            Self::InOutSine => 15,
+            Self::OutQuart => 16,
+            Self::InOutCirc => 17,
+            Self::InCirc => 18,
+            Self::OutCirc => 19,
+        }
+    }
 }

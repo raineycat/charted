@@ -1,4 +1,4 @@
-use binary_rw::{BinaryError, BinaryReader};
+use binary_rw::{BinaryError, BinaryReader, BinaryWriter};
 
 use crate::chart::{bpm_handler::BpmHandler, gimmick::Gimmick, note::Note};
 
@@ -53,5 +53,27 @@ impl Chart {
 
         chart.recalc_bpm();
         Ok(chart)
+    }
+
+    pub fn write_binary(&self, w: &mut BinaryWriter) -> Result<(), BinaryError> {
+        for c in "VSC".chars() {
+            w.write_u8(c as u8)?;
+        }
+
+        w.write_u8(1)?;
+        w.write_u8(0)?;
+
+        w.write_u8(0xC0)?; // note list start
+        for note in &self.notes {
+            note.write_binary(w)?;
+        }
+        w.write_u8(0xC1)?; // note list end
+
+        self.gimmick.write_binary(w)?;
+        w.write_u8(0xFF)?;
+
+        // append bytes to fill the signature
+        w.write_bytes_with_value(0x180, 0)?;
+        Ok(())
     }
 }

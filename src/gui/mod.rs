@@ -1,6 +1,10 @@
-use binary_rw::{BinaryError, BinaryReader, FileStream};
+use std::path::PathBuf;
+
+use binary_rw::{BinaryError, BinaryReader, BinaryWriter, FileStream};
 use iced::{
-    Alignment, Element, Length, Task, Theme, border,
+    Alignment, Element, Length, Task, Theme,
+    alignment::Vertical::Top,
+    border,
     widget::{button, column, container, pane_grid, row, text},
 };
 use rfd::FileHandle;
@@ -40,6 +44,39 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             Task::none()
         }
 
+        Message::SaveChart => {
+            if let Some(path) = &state.file_path {
+                Task::done(Message::SaveChartAs(path.clone()))
+            } else {
+                save_chart_file()
+            }
+        }
+        Message::SaveChartCancelled => Task::none(),
+        Message::SaveChartAs(path) => {
+            if let Some(chart) = &state.loaded_chart {
+                match write_chart(&path, chart) {
+                    Ok(()) => {
+                        state.file_modified = false;
+                    }
+                    Err(e) => {
+                        log::error!("Failed to save chart {:?}: {:#?}", path, e);
+                    }
+                };
+            }
+            Task::none()
+        }
+        Message::CloseChart => {
+            state.loaded_chart = None;
+            state.file_path = None;
+            state.selected_note = None;
+            state.file_modified = false;
+            Task::none()
+        }
+        Message::ChartHasBeenModified => {
+            state.file_modified = true;
+            Task::none()
+        }
+
         Message::PaneDragged(e) => {
             if let pane_grid::DragEvent::Dropped { pane, target } = e {
                 state.panes.drop(pane, target);
@@ -71,8 +108,11 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                 {
                     state.selected_note = None;
                 }
+
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
             }
-            Task::none()
         }
 
         Message::SetNoteKind(kind) => {
@@ -80,8 +120,10 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                 && let Some(selected_note_idx) = &state.selected_note
             {
                 chart.notes[*selected_note_idx].kind = kind;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
             }
-            Task::none()
         }
 
         Message::NudgeLane(amount) => {
@@ -91,8 +133,11 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                 let mut prev_lane = chart.notes[*selected_note_idx].lane as i8;
                 prev_lane = (prev_lane + amount).clamp(0, 4);
                 chart.notes[*selected_note_idx].lane = prev_lane as u8;
+
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
             }
-            Task::none()
         }
 
         Message::NudgeBeat(amount) => {
@@ -110,8 +155,10 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                     None => {}
                 }
                 chart.recalc_bpm();
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
             }
-            Task::none()
         }
     }
 }
@@ -178,9 +225,26 @@ fn open_chart_file() -> Task<Message> {
     })
 }
 
+fn save_chart_file() -> Task<Message> {
+    Task::future(
+        rfd::AsyncFileDialog::new()
+            .add_filter("Binary chart files", &["vsb"])
+            .save_file(),
+    )
+    .then(|handle| match handle {
+        Some(file_handle) => Task::done(Message::SaveChartAs(file_handle.path().to_path_buf())),
+        None => Task::done(Message::SaveChartCancelled),
+    })
+}
+
 fn load_chart(handle: &FileHandle) -> Result<Chart, BinaryError> {
     let mut stream = FileStream::open(handle.path())?;
     let mut reader = BinaryReader::new(&mut stream, binary_rw::Endian::Little);
-    let chart = Chart::read_binary(&mut reader)?;
-    Ok(chart)
+    Chart::read_binary(&mut reader)
+}
+
+fn write_chart(path: &PathBuf, chart: &Chart) -> Result<(), BinaryError> {
+    let mut stream = FileStream::create(path)?;
+    let mut writer = BinaryWriter::new(&mut stream, binary_rw::Endian::Little);
+    chart.write_binary(&mut writer)
 }

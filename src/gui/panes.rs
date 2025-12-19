@@ -1,6 +1,6 @@
 use iced::{
     Element,
-    widget::{canvas, column, grid, pick_list, scrollable, space, text},
+    widget::{button, canvas, column, grid, pick_list, row, scrollable, space, text},
 };
 
 use crate::{
@@ -37,6 +37,12 @@ pub fn info(state: &State) -> Element<'_, Message> {
             text!("- {} mods", chart.gimmick.mods.len()),
             text!("- {} per-frames", chart.gimmick.per_frames.len()),
             text!("- {} proxies", chart.gimmick.proxies),
+            space(),
+            row![
+                button("SAVE").on_press(Message::SaveChart),
+                button("CLOSE").on_press(Message::CloseChart),
+            ]
+            .spacing(5)
         ]
         .spacing(10)
         .padding(10)
@@ -114,7 +120,7 @@ pub fn note_edit(state: &State) -> Element<'_, Message> {
         .spacing(10)
         .into()
     } else {
-        text("Left click to add or select notes, right click to remove them.")
+        text("Left click to select notes, right click to remove them.")
             .center()
             .style(text::secondary)
             .into()

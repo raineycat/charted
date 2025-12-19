@@ -59,7 +59,7 @@ impl Note {
             None => {}
         };
 
-        w.write_u8(0xA7)?; // note end
+        w.write_u8(0xA1)?; // note end
         Ok(())
     }
 }
