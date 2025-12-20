@@ -11,6 +11,7 @@ use crate::{
     chart::{
         Chart,
         note::{Note, NoteExtra},
+        note_kind::NoteKind,
     },
     gui::state::{ChartPane, Message, State},
 };
@@ -36,7 +37,7 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
         Message::NewChart => {
             let mut chart = Chart::default();
             chart.notes.push(Note {
-                kind: Note::TEMPO_CHANGE,
+                kind: NoteKind::TempoChange,
                 lane: 0,
                 time: 0.0,
                 extra: Some(NoteExtra::TempoChange(120.0)),
@@ -128,7 +129,13 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             if let Some(chart) = state.loaded_chart.as_mut()
                 && let Some(selected_note_idx) = &state.selected_note
             {
-                chart.notes[*selected_note_idx].kind = kind;
+                let note = &mut chart.notes[*selected_note_idx];
+                note.kind = kind;
+                note.extra = match kind {
+                    NoteKind::Hold => Some(NoteExtra::HoldEndTime((note.time + 1000.0) as i32)),
+                    NoteKind::TempoChange => Some(NoteExtra::TempoChange(120.0)),
+                    _ => None,
+                };
                 Task::done(Message::ChartHasBeenModified)
             } else {
                 Task::none()
@@ -177,8 +184,8 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                     lane: lane,
                     time: time,
                     extra: match kind {
-                        Note::HOLD => Some(NoteExtra::HoldEndTime((time + 1000.0) as i32)),
-                        Note::TEMPO_CHANGE => Some(NoteExtra::TempoChange(120.0)),
+                        NoteKind::Hold => Some(NoteExtra::HoldEndTime((time + 1000.0) as i32)),
+                        NoteKind::TempoChange => Some(NoteExtra::TempoChange(120.0)),
                         _ => None,
                     },
                 });

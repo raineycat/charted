@@ -1,8 +1,10 @@
 use binary_rw::{BinaryError, BinaryReader, BinaryWriter};
 
+use crate::chart::note_kind::NoteKind;
+
 #[derive(Debug, Clone, Default)]
 pub struct Note {
-    pub kind: u8,
+    pub kind: NoteKind,
     pub lane: u8,
     pub time: f32,
     pub extra: Option<NoteExtra>,
@@ -15,25 +17,16 @@ pub enum NoteExtra {
 }
 
 impl Note {
-    pub const CHIP: u8 = 0;
-    pub const BUMPER: u8 = 1;
-    pub const HOLD: u8 = 2;
-    pub const TEMPO_CHANGE: u8 = 3;
-    pub const UNKNOWN: u8 = 4;
-    pub const MINE: u8 = 6;
-    pub const BUMPER_MINE: u8 = 7;
-    pub const ABSOLUTE_BUMPER: u8 = 8;
-
     pub(crate) fn read_binary(r: &mut BinaryReader) -> Result<Self, BinaryError> {
         let mut note = Self::default();
 
         loop {
             let flag = r.read_u8()?;
             match flag {
-                0xA2 => note.kind = r.read_u8()?,
+                0xA2 => note.kind = NoteKind::from_byte(r.read_u8()?).unwrap_or_default(),
                 0xA3 => note.lane = r.read_u8()?,
                 0xA4 => note.time = r.read_f32()?,
-                0xA6 => note.extra = NoteExtra::read_binary(note.kind, r)?,
+                0xA6 => note.extra = NoteExtra::read_binary(&note.kind, r)?,
 
                 0xA1 => break,
                 _ => {}
@@ -47,7 +40,7 @@ impl Note {
         w.write_u8(0xA0)?; // note start
 
         w.write_u8(0xA2)?; // note kind
-        w.write_u8(self.kind)?;
+        w.write_u8(self.kind.to_byte())?;
 
         w.write_u8(0xA3)?; // note lane
         w.write_u8(self.lane)?;
@@ -86,14 +79,17 @@ impl NoteExtra {
         Ok(())
     }
 
-    fn read_binary(note_kind: u8, r: &mut BinaryReader) -> Result<Option<Self>, BinaryError> {
+    fn read_binary(
+        note_kind: &NoteKind,
+        r: &mut BinaryReader,
+    ) -> Result<Option<Self>, BinaryError> {
         let data_type = r.read_u8()?;
         if data_type == 0xA7 {
             return Ok(None);
         }
 
         match note_kind {
-            Note::HOLD => {
+            NoteKind::Hold => {
                 let field_id = r.read_u8()?;
                 assert_eq!(field_id, 1);
 
@@ -106,7 +102,7 @@ impl NoteExtra {
                 Ok(value.map(|val| Self::HoldEndTime(val)))
             }
 
-            Note::TEMPO_CHANGE => {
+            NoteKind::TempoChange => {
                 let field_id = r.read_u8()?;
                 assert_eq!(field_id, 1);
 

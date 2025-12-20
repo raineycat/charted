@@ -1,7 +1,7 @@
 use iced::{
     Element,
     Length::Fill,
-    widget::{button, canvas, column, grid, pick_list, row, scrollable, space, text},
+    widget::{button, canvas, column, pick_list, row, space, text},
 };
 use iced_aw::number_input;
 
@@ -9,6 +9,7 @@ use crate::{
     chart::{
         Chart,
         note::{Note, NoteExtra},
+        note_kind::NoteKind,
     },
     gui::state::{Message, State},
 };
@@ -73,17 +74,10 @@ pub fn mods(state: &State) -> Element<'_, Message> {
                 .style(text::secondary)
                 .into()
         } else {
-            scrollable(grid!(
-                text("meow1"),
-                text("meow2"),
-                text("meow3"),
-                text("meow4"),
-                text("meow5"),
-                text("meow6"),
-                text("meow7"),
-                text("meow8"),
-            ))
-            .into()
+            text("Modifier handling is not implemented!")
+                .center()
+                .style(text::warning)
+                .into()
         }
     } else {
         text("No chart").into()
@@ -98,17 +92,10 @@ pub fn per_frames(state: &State) -> Element<'_, Message> {
                 .style(text::secondary)
                 .into()
         } else {
-            scrollable(grid!(
-                text("meow1"),
-                text("meow2"),
-                text("meow3"),
-                text("meow4"),
-                text("meow5"),
-                text("meow6"),
-                text("meow7"),
-                text("meow8"),
-            ))
-            .into()
+            text("Per-frame handling is not implemented!")
+                .center()
+                .style(text::warning)
+                .into()
         }
     } else {
         text("No chart").into()
@@ -121,14 +108,14 @@ pub fn note_edit(state: &State) -> Element<'_, Message> {
     {
         let selected_note = &chart.notes[*selected_note_idx];
         let note_types = [
-            Note::CHIP,
-            Note::MINE,
-            Note::HOLD,
-            Note::BUMPER,
-            Note::BUMPER_MINE,
-            Note::ABSOLUTE_BUMPER,
-            Note::TEMPO_CHANGE,
-            Note::UNKNOWN,
+            NoteKind::Chip,
+            NoteKind::Mine,
+            NoteKind::Hold,
+            NoteKind::Bumper,
+            NoteKind::BumperMine,
+            NoteKind::AbsoluteBumper,
+            NoteKind::TempoChange,
+            NoteKind::UnknownType,
         ];
 
         column![

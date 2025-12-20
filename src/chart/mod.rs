@@ -6,6 +6,7 @@ pub mod bpm_handler;
 pub mod easing;
 pub mod gimmick;
 pub mod note;
+pub mod note_kind;
 mod terminated_string;
 
 #[derive(Debug, Clone, Default)]

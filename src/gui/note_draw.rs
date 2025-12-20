@@ -2,6 +2,7 @@ use crate::{
     chart::{
         Chart,
         note::{Note, NoteExtra},
+        note_kind::NoteKind,
     },
     gui::state::Message,
 };
@@ -22,7 +23,7 @@ pub struct NoteDrawState {
 
     place_notes: bool,
     disable_snapping: bool,
-    current_note_kind: u8,
+    current_note_kind: NoteKind,
 }
 
 impl Default for NoteDrawState {
@@ -37,7 +38,7 @@ impl Default for NoteDrawState {
 
             place_notes: false,
             disable_snapping: false,
-            current_note_kind: Note::CHIP,
+            current_note_kind: NoteKind::Chip,
         }
     }
 }
@@ -81,15 +82,15 @@ impl canvas::Program<Message> for Chart {
 
                 key::Key::Character(ch) => {
                     state.current_note_kind = match ch.as_str() {
-                        "q" => Note::CHIP,
-                        "w" => Note::HOLD,
-                        "e" => Note::MINE,
-                        "r" => Note::BUMPER,
-                        "a" => Note::TEMPO_CHANGE,
-                        "s" => Note::ABSOLUTE_BUMPER,
-                        "d" => Note::BUMPER_MINE,
-                        "f" => Note::UNKNOWN,
-                        _ => Note::CHIP,
+                        "q" => NoteKind::Chip,
+                        "w" => NoteKind::Hold,
+                        "e" => NoteKind::Mine,
+                        "r" => NoteKind::Bumper,
+                        "a" => NoteKind::TempoChange,
+                        "s" => NoteKind::AbsoluteBumper,
+                        "d" => NoteKind::BumperMine,
+                        "f" => NoteKind::UnknownType,
+                        _ => NoteKind::Chip,
                     }
                 }
 
@@ -200,11 +201,11 @@ impl canvas::Program<Message> for Chart {
 
         for note in &self.notes {
             let color_val = match note.kind {
-                Note::CHIP | Note::HOLD | Note::BUMPER | Note::ABSOLUTE_BUMPER => {
+                NoteKind::Chip | NoteKind::Hold | NoteKind::Bumper | NoteKind::AbsoluteBumper => {
                     get_lane_color(note.lane)
                 }
-                Note::MINE | Note::BUMPER_MINE => color!(0x6b0000),
-                Note::TEMPO_CHANGE => color!(0x96ff9d),
+                NoteKind::Mine | NoteKind::BumperMine => color!(0x6b0000),
+                NoteKind::TempoChange => color!(0x96ff9d),
                 _ => color!(0xFF00FF),
             };
 
@@ -258,8 +259,8 @@ fn calc_note_display(state: &NoteDrawState, note: &Note) -> (iced::Point, iced::
     );
 
     let width_mult = match note.kind {
-        Note::BUMPER | Note::BUMPER_MINE | Note::ABSOLUTE_BUMPER => 2.0,
-        Note::TEMPO_CHANGE => 4.0,
+        NoteKind::Bumper | NoteKind::BumperMine | NoteKind::AbsoluteBumper => 2.0,
+        NoteKind::TempoChange => 4.0,
         _ => 1.0,
     };
 

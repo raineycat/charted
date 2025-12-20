@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use iced::widget::pane_grid;
 
-use crate::chart::Chart;
+use crate::chart::{Chart, note_kind::NoteKind};
 
 pub struct State {
     pub file_path: Option<PathBuf>,
@@ -69,10 +69,10 @@ pub enum Message {
     DeselectNote,
     RemoveNote(usize),
 
-    SetNoteKind(u8),
+    SetNoteKind(NoteKind),
     NudgeLane(i8),
     NudgeBeat(f32),
-    CreateNote(f32, u8, u8),
+    CreateNote(f32, NoteKind, u8),
     SetHoldEndBeat(f32),
     SetTempChangeValue(f32),
 }
