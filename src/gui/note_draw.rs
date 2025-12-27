@@ -4,7 +4,7 @@ use crate::{
         note::{Note, NoteExtra},
         note_kind::NoteKind,
     },
-    gui::state::Message,
+    gui::{mod_tracker::ModTracker, state::Message},
 };
 use iced::{
     Rectangle, Renderer, Theme, color,
@@ -24,6 +24,8 @@ pub struct NoteDrawState {
     place_notes: bool,
     disable_snapping: bool,
     current_note_kind: NoteKind,
+
+    show_mod_layer: bool,
 }
 
 impl Default for NoteDrawState {
@@ -39,6 +41,8 @@ impl Default for NoteDrawState {
             place_notes: false,
             disable_snapping: false,
             current_note_kind: NoteKind::Chip,
+
+            show_mod_layer: false,
         }
     }
 }
@@ -78,6 +82,10 @@ impl canvas::Program<Message> for Chart {
                 }
                 key::Key::Named(key::Named::ArrowRight) => {
                     return Some(widget::Action::publish(Message::NudgeLane(1)));
+                }
+
+                key::Key::Named(key::Named::Space) => {
+                    state.show_mod_layer = !state.show_mod_layer;
                 }
 
                 key::Key::Character(ch) => {
@@ -145,8 +153,9 @@ impl canvas::Program<Message> for Chart {
             _ => {}
         }
 
-        state.lane_width = (bounds.width * 0.85) / 4.0;
-        state.gutter_width = bounds.width * 0.15;
+        let lane_percent: f32 = 0.5;
+        state.lane_width = (bounds.width * lane_percent) / 4.0;
+        state.gutter_width = bounds.width * (1.0 - lane_percent);
         Some(widget::Action::request_redraw())
     }
 
@@ -199,48 +208,84 @@ impl canvas::Program<Message> for Chart {
             frame.fill_text(beat_label);
         }
 
+        let earliest_visible_time = (0.0 - state.scroll_pos) / state.units_per_ms;
+        let latest_visible_time = (bounds.height - state.scroll_pos) / state.units_per_ms;
+
         for note in &self.notes {
-            let color_val = match note.kind {
-                NoteKind::Chip | NoteKind::Hold | NoteKind::Bumper | NoteKind::AbsoluteBumper => {
-                    get_lane_color(note.lane)
-                }
-                NoteKind::Mine | NoteKind::BumperMine => color!(0x6b0000),
-                NoteKind::TempoChange => color!(0x96ff9d),
-                _ => color!(0xFF00FF),
-            };
+            if note.time > latest_visible_time {
+                continue;
+            }
+            // hack: i cba to calculate this for hold notes
+            if note.kind != NoteKind::Hold && note.time < earliest_visible_time {
+                continue;
+            }
 
             let (pos, size) = calc_note_display(&state, &note);
-            frame.fill_rectangle(pos, size, canvas::Fill::from(color_val));
+            let fill = canvas::Fill::from(get_note_color(&note));
+            frame.fill_rectangle(pos, size, fill);
         }
 
-        for modifier in &self.gimmick.mods {
-            let start_time = &self
-                .bpm_handler
-                .time_from_beat(modifier.start_beat)
-                .unwrap_or(-1.0);
+        if state.show_mod_layer {
+            let translucent_fill = canvas::Fill::from(iced::Color {
+                a: 0.8,
+                ..theme.palette().background
+            });
+            frame.fill_rectangle(iced::Point::default(), bounds.size(), translucent_fill);
 
-            let end_time = &self
-                .bpm_handler
-                .time_from_beat(modifier.start_beat + modifier.duration)
-                .unwrap_or(-1.0);
+            let mut tracker = ModTracker::new();
+            const MOD_RADIUS: f32 = 5.0;
 
-            let gutter_portion: f32 = 1.0 / 4.0;
-            let start = iced::Point::new(
-                bounds.width - (state.gutter_width * gutter_portion) + state.x_padding,
-                start_time * state.units_per_ms + state.scroll_pos,
-            );
-            let end = start + iced::Vector::new(0.0, (*end_time - start_time) * state.units_per_ms);
-            let width = (state.gutter_width * gutter_portion) - (state.x_padding * 2.0);
+            for modifier in &self.gimmick.mods {
+                let mod_time = self
+                    .bpm_handler
+                    .time_from_beat(modifier.start_beat)
+                    .unwrap_or(-1.0);
 
-            let line = canvas::Path::line(start, end);
-            let stroke = canvas::Stroke::default()
-                .with_color(color!(0x96ff9d))
-                .with_width(width)
-                .with_line_cap(canvas::LineCap::Round);
-            frame.stroke(&line, stroke);
+                let end_time = self
+                    .bpm_handler
+                    .time_from_beat(modifier.start_beat + modifier.duration)
+                    .unwrap_or(-1.0);
+
+                if end_time < earliest_visible_time || mod_time > latest_visible_time {
+                    tracker.add(modifier.start_beat, modifier.start_beat + modifier.duration);
+                    continue;
+                }
+
+                let offset_x = MOD_RADIUS
+                    + tracker.count_at_beat(modifier.start_beat) as f32 * MOD_RADIUS * 3.0;
+                let start_point =
+                    iced::Point::new(offset_x, mod_time * state.units_per_ms + state.scroll_pos);
+                let end_point =
+                    iced::Point::new(offset_x, end_time * state.units_per_ms + state.scroll_pos);
+
+                let circle = canvas::Path::circle(start_point, MOD_RADIUS);
+                let line = canvas::Path::line(start_point, end_point);
+
+                const MOD_COLOUR: iced::Color = color!(0x96ff9d);
+                let fill = canvas::Fill::from(MOD_COLOUR);
+                let stroke = canvas::Stroke::default()
+                    .with_color(MOD_COLOUR)
+                    .with_width(MOD_RADIUS / 2.0);
+
+                frame.fill(&circle, fill);
+                frame.stroke(&line, stroke);
+
+                tracker.add(modifier.start_beat, modifier.start_beat + modifier.duration);
+            }
         }
 
         vec![frame.into_geometry()]
+    }
+}
+
+fn get_note_color(note: &Note) -> iced::Color {
+    match note.kind {
+        NoteKind::Chip | NoteKind::Hold | NoteKind::Bumper | NoteKind::AbsoluteBumper => {
+            get_lane_color(note.lane)
+        }
+        NoteKind::Mine | NoteKind::BumperMine => color!(0x6b0000),
+        NoteKind::TempoChange => color!(0x96ff9d),
+        _ => color!(0xFF00FF),
     }
 }
 

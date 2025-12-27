@@ -30,17 +30,7 @@ impl Default for State {
                     a: Box::new(pane_grid::Configuration::Pane(ChartPane::InfoPane)),
                     b: Box::new(pane_grid::Configuration::Pane(ChartPane::NoteEditPane)),
                 }),
-                b: Box::new(pane_grid::Configuration::Split {
-                    axis: pane_grid::Axis::Vertical,
-                    ratio: 0.45,
-                    a: Box::new(pane_grid::Configuration::Pane(ChartPane::NotePane)),
-                    b: Box::new(pane_grid::Configuration::Split {
-                        axis: pane_grid::Axis::Horizontal,
-                        ratio: 0.5,
-                        a: Box::new(pane_grid::Configuration::Pane(ChartPane::ModPane)),
-                        b: Box::new(pane_grid::Configuration::Pane(ChartPane::PerFramePane)),
-                    }),
-                }),
+                b: Box::new(pane_grid::Configuration::Pane(ChartPane::NotePane)),
             }),
         }
     }

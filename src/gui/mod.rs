@@ -16,6 +16,7 @@ use crate::{
     gui::state::{ChartPane, Message, State},
 };
 
+mod mod_tracker;
 mod note_draw;
 mod panes;
 pub mod state;
