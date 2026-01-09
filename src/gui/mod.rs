@@ -1,10 +1,11 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use binary_rw::{BinaryError, BinaryReader, BinaryWriter, FileStream};
 use iced::{
     Alignment, Element, Length, Task, Theme, border,
     widget::{button, column, container, pane_grid, row, text},
 };
+use kira::sound::static_sound;
 use rfd::FileHandle;
 
 use crate::{
@@ -220,6 +221,61 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
                 Task::none()
             }
         }
+
+        Message::OpenAudioDevice => {
+            let settings = kira::AudioManagerSettings::default();
+            state.audio_mgr = match kira::AudioManager::<kira::DefaultBackend>::new(settings) {
+                Ok(m) => Some(m),
+                Err(e) => {
+                    log::error!("Failed to create the audio manager: {}", e);
+                    None
+                }
+            };
+            Task::none()
+        }
+
+        Message::PickMusicFile => pick_music_task(),
+
+        Message::OpenMusicFrom(p) => {
+            let sound = match static_sound::StaticSoundData::from_file(&p) {
+                Ok(s) => Some(s),
+                Err(e) => {
+                    log::error!("Failed to load {}: {}", &p.display(), e);
+                    None
+                }
+            };
+
+            if let Some(mgr) = state.audio_mgr.as_mut()
+                && let Some(sound) = sound
+            {
+                state.audio_track = mgr.play(sound).ok();
+                state.audio_track.as_mut().map(|t| t.pause(instant_tween()));
+            }
+
+            Task::none()
+        }
+
+        Message::MusicPlay => {
+            if let Some(track) = state.audio_track.as_mut() {
+                track.resume(instant_tween());
+            };
+            Task::none()
+        }
+
+        Message::MusicPause => {
+            if let Some(track) = state.audio_track.as_mut() {
+                track.pause(instant_tween());
+            };
+            Task::none()
+        }
+
+        Message::MusicStop => {
+            if let Some(track) = state.audio_track.as_mut() {
+                track.pause(instant_tween());
+                track.seek_to(0.0);
+            };
+            Task::none()
+        }
     }
 }
 
@@ -232,6 +288,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
                 ChartPane::ModPane => panes::mods(state),
                 ChartPane::PerFramePane => panes::per_frames(state),
                 ChartPane::NoteEditPane => panes::note_edit(state),
+                ChartPane::AudioPane => panes::audio(state),
             })
             .style(|theme| container::Style {
                 border: iced::Border {
@@ -307,4 +364,24 @@ fn write_chart(path: &PathBuf, chart: &Chart) -> Result<(), BinaryError> {
     let mut stream = FileStream::create(path)?;
     let mut writer = BinaryWriter::new(&mut stream, binary_rw::Endian::Little);
     chart.write_binary(&mut writer)
+}
+
+fn pick_music_task() -> Task<Message> {
+    Task::future(
+        rfd::AsyncFileDialog::new()
+            .add_filter("Music files", &["wav", "mp3", "ogg", "flac"])
+            .pick_file(),
+    )
+    .then(|handle| match handle {
+        Some(file_handle) => Task::done(Message::OpenMusicFrom(file_handle.path().into())),
+        None => Task::none(),
+    })
+}
+
+fn instant_tween() -> kira::Tween {
+    kira::Tween {
+        start_time: kira::StartTime::Immediate,
+        duration: Duration::ZERO,
+        easing: kira::Easing::Linear,
+    }
 }

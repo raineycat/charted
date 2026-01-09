@@ -20,7 +20,7 @@ fn main() -> iced::Result {
         ..Default::default()
     };
 
-    iced::application(State::default, gui::update, gui::view)
+    iced::application(State::new, gui::update, gui::view)
         .title("ChartEd")
         .window(window)
         .theme(gui::theme)

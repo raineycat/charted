@@ -133,6 +133,7 @@ pub fn note_edit(state: &State) -> Element<'_, Message> {
             note_extra_edit(chart, selected_note),
         ]
         .spacing(10)
+        .padding(10)
         .into()
     } else {
         text("Left click to select notes,\nright click to remove them.\n\nShift-click to add notes,\nand hold alt to disable snapping.")
@@ -169,4 +170,25 @@ fn note_extra_edit<'a>(chart: &Chart, note: &Note) -> Element<'a, Message> {
             }
         },
     }
+}
+
+pub fn audio(_state: &State) -> Element<'_, Message> {
+    column![
+        text("Audio controls").center().width(iced::Length::Fill),
+        button("OPEN")
+            .on_press(Message::PickMusicFile)
+            .width(iced::Length::Fill),
+        button("PLAY")
+            .on_press(Message::MusicPlay)
+            .width(iced::Length::Fill),
+        button("STOP")
+            .on_press(Message::MusicStop)
+            .width(iced::Length::Fill),
+        button("PAUSE")
+            .on_press(Message::MusicPause)
+            .width(iced::Length::Fill),
+    ]
+    .spacing(10)
+    .padding(10)
+    .into()
 }
