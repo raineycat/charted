@@ -10,7 +10,7 @@ pub struct Gimmick {
     pub per_frames: Vec<PerFrame>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Modifier {
     pub start_beat: f32,
     pub duration: f32,
@@ -19,6 +19,20 @@ pub struct Modifier {
     pub end_val: f32,
     pub kind: u8,
     pub proxy_index: i8,
+}
+
+impl Default for Modifier {
+    fn default() -> Self {
+        Self {
+            start_beat: 0.0,
+            duration: 0.0,
+            ease: Easing::Linear,
+            start_val: 1.0,
+            end_val: 1.0,
+            kind: 0,
+            proxy_index: -1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -113,6 +127,82 @@ impl Modifier {
         w.write_i8(self.proxy_index)?;
         Ok(())
     }
+
+    pub const KNOWN_KINDS: [&'static str; 73] = [
+        "unknown",
+        "prx",
+        "prxb",
+        "prxc",
+        "pry",
+        "pryb",
+        "pryc",
+        "prsx",
+        "pra",
+        "przm",
+        "przmb",
+        "przx",
+        "przy",
+        "prrx",
+        "prry",
+        "prrz",
+        "prrzb",
+        "shxs",
+        "shxp",
+        "shxa",
+        "shys",
+        "shyp",
+        "shya",
+        "scrollspeed",
+        "noterot",
+        "velocity",
+        "spinradius",
+        "spiny",
+        "spinx",
+        "driven",
+        "beat",
+        "wave",
+        "hom",
+        "boost_distance",
+        "boost_time",
+        "yoffset",
+        "notealp",
+        "przmc",
+        "prxd",
+        "pryd",
+        "prct",
+        "prcb",
+        "prcl",
+        "prcr",
+        "prvib",
+        "shct",
+        "shft",
+        "shcb",
+        "shfb",
+        "shcl",
+        "shfl",
+        "shcr",
+        "shfr",
+        "scrollind0",
+        "scrollind1",
+        "scrollind2",
+        "scrollind3",
+        "scrollind4",
+        "scrollind5",
+        "scrollind6",
+        "drawdist",
+        "pburstleft",
+        "pburstright",
+        "particlexpower",
+        "particleypower",
+        "uialpha",
+        "fx_contrast",
+        "fx_chroma_distort",
+        "fx_film",
+        "fx_glow",
+        "fx_particleglow",
+        "pburstspeed",
+        "freeze",
+    ];
 }
 
 impl PerFrame {

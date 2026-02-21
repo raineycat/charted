@@ -1,17 +1,22 @@
 use iced::{
     Element,
     Length::Fill,
-    widget::{button, canvas, column, pick_list, row, space, text},
+    widget::{button, canvas, column, pick_list, row, space, text, text_input},
 };
-use iced_aw::number_input;
+use iced_aw::{iced_aw_font, iced_fonts, number_input};
 
 use crate::{
     chart::{
         Chart,
+        easing::Easing,
+        gimmick::Modifier,
         note::{Note, NoteExtra},
         note_kind::NoteKind,
     },
-    gui::state::{Message, State},
+    gui::{
+        note_draw::NoteCanvasState,
+        state::{Message, State},
+    },
 };
 
 pub fn info(state: &State) -> Element<'_, Message> {
@@ -36,16 +41,19 @@ pub fn info(state: &State) -> Element<'_, Message> {
         column![
             text!("{open_file_name}{modified_mark}").size(20),
             space(),
-            text!("refs: {}", chart.gimmick.gm_object_name),
+            text_input("Gimmick object", &chart.gimmick.gm_object_name)
+                .on_input(Message::SetGimmickObject),
             space(),
-            text!("- {} notes", chart.notes.len()),
-            text!("- {} tempo changes", chart.bpm_handler.count_changes()),
-            text!("- {} mods", chart.gimmick.mods.len()),
-            text!("- {} per-frames", chart.gimmick.per_frames.len()),
-            text!("- {} proxies", chart.gimmick.proxies),
+            text!("{} notes", chart.notes.len()).center(),
+            row![
+                number_input(&chart.gimmick.proxies, 0..u8::MAX, Message::SetProxyCount),
+                text!("proxies")
+            ]
+            .align_y(iced::Alignment::Center)
+            .spacing(5),
             space(),
             row![
-                button("SAVE").on_press(Message::SaveChart),
+                button(iced_fonts::lucide::save()).on_press(Message::SaveChart),
                 button("CLOSE").on_press(Message::CloseChart),
             ]
             .spacing(5)
@@ -60,7 +68,15 @@ pub fn info(state: &State) -> Element<'_, Message> {
 
 pub fn notes(state: &State) -> Element<'_, Message> {
     if let Some(chart) = &state.loaded_chart {
-        canvas(chart).into()
+        canvas(NoteCanvasState {
+            chart: chart,
+            music_pos: state
+                .audio_track
+                .as_ref()
+                .map(|t| (t.position() * 1000.0) as f32),
+            music_offset: state.audio_offset_ms,
+        })
+        .into()
     } else {
         text("No chart").into()
     }
@@ -143,6 +159,72 @@ pub fn note_edit(state: &State) -> Element<'_, Message> {
     }
 }
 
+pub fn mod_edit(state: &State) -> Element<'_, Message> {
+    if let Some(chart) = &state.loaded_chart
+        && let Some(selected_mod_idx) = &state.selected_mod
+    {
+        let selected_mod = chart.gimmick.mods[*selected_mod_idx].clone();
+
+        column![
+            text!("Selected modifier").size(20),
+            space(),
+            text!("Start / duration (beats)"),
+            row![
+                number_input(
+                    &selected_mod.start_beat,
+                    f32::MIN..f32::MAX,
+                    Message::SetModStartBeat
+                ),
+                number_input(
+                    &selected_mod.duration,
+                    f32::MIN..f32::MAX,
+                    Message::SetModDuration
+                ),
+            ],
+            text!("Type value"),
+            number_input(&selected_mod.kind, 0..255, Message::SetModKind),
+            text!("Well-known types"),
+            pick_list(
+                Modifier::KNOWN_KINDS,
+                Modifier::KNOWN_KINDS.get(selected_mod.kind as usize),
+                move |s| Message::SetModKind(
+                    Modifier::KNOWN_KINDS
+                        .iter()
+                        .position(|&x| x == s)
+                        .map(|x| x as u8)
+                        .unwrap_or(selected_mod.kind)
+                )
+            ),
+            text!("Value range from/to"),
+            row![
+                number_input(&selected_mod.start_val, f32::MIN..f32::MAX, move |x| {
+                    let new_end = selected_mod.end_val + (x - selected_mod.start_val);
+                    Message::SetModRange(x..new_end)
+                }),
+                number_input(&selected_mod.end_val, f32::MIN..f32::MAX, move |x| {
+                    Message::SetModRange(selected_mod.start_val..x)
+                }),
+            ],
+            text!("Ease function"),
+            pick_list(Easing::ALL, Some(selected_mod.ease), Message::SetModEase),
+            text!("Proxy index"),
+            number_input(
+                &selected_mod.proxy_index,
+                i8::MIN..i8::MAX,
+                Message::SetModProxy
+            ),
+        ]
+        .spacing(10)
+        .padding(10)
+        .into()
+    } else {
+        text("No mod has been selected.")
+            .center()
+            .style(text::secondary)
+            .into()
+    }
+}
+
 fn note_extra_edit<'a>(chart: &Chart, note: &Note) -> Element<'a, Message> {
     match &note.extra {
         None => text("This note has no extra data")
@@ -172,21 +254,31 @@ fn note_extra_edit<'a>(chart: &Chart, note: &Note) -> Element<'a, Message> {
     }
 }
 
-pub fn audio(_state: &State) -> Element<'_, Message> {
+pub fn audio(state: &State) -> Element<'_, Message> {
     column![
         text("Audio controls").center().width(iced::Length::Fill),
-        button("OPEN")
-            .on_press(Message::PickMusicFile)
-            .width(iced::Length::Fill),
-        button("PLAY")
-            .on_press(Message::MusicPlay)
-            .width(iced::Length::Fill),
-        button("STOP")
-            .on_press(Message::MusicStop)
-            .width(iced::Length::Fill),
-        button("PAUSE")
-            .on_press(Message::MusicPause)
-            .width(iced::Length::Fill),
+        row![
+            button(iced_fonts::lucide::music())
+                .on_press(Message::PickMusicFile)
+                .width(iced::Length::Fill),
+            button(iced_fonts::lucide::play())
+                .on_press(Message::MusicPlay)
+                .width(iced::Length::Fill),
+            button(iced_fonts::lucide::pause())
+                .on_press(Message::MusicPause)
+                .width(iced::Length::Fill),
+            button(iced_fonts::lucide::square())
+                .on_press(Message::MusicStop)
+                .width(iced::Length::Fill),
+        ]
+        .spacing(10)
+        .width(iced::Length::Fill),
+        number_input(
+            &state.audio_offset_ms,
+            -250.0..250.0,
+            Message::SetAudioOffset
+        )
+        .width(iced::Length::Fill)
     ]
     .spacing(10)
     .padding(10)

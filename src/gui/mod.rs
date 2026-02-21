@@ -49,12 +49,14 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             state.file_path = None;
             state.loaded_chart = Some(chart);
             state.selected_note = None;
+            state.selected_mod = None;
             Task::none()
         }
         Message::LoadedChart(path, c) => {
             state.file_path = Some(path);
             state.loaded_chart = Some(c);
             state.selected_note = None;
+            state.selected_mod = None;
             Task::none()
         }
 
@@ -70,6 +72,7 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             if let Some(chart) = state.loaded_chart.as_mut() {
                 chart.sort_notes();
                 state.selected_note = None;
+                state.selected_mod = None;
 
                 match write_chart(&path, chart) {
                     Ok(()) => {
@@ -87,6 +90,7 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             state.loaded_chart = None;
             state.file_path = None;
             state.selected_note = None;
+            state.selected_mod = None;
             state.file_modified = false;
             Task::none()
         }
@@ -113,6 +117,7 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
 
         Message::DeselectNote => {
             state.selected_note = None;
+            state.selected_mod = None;
             Task::none()
         }
 
@@ -276,6 +281,135 @@ pub fn update(state: &mut State, msg: Message) -> Task<Message> {
             };
             Task::none()
         }
+
+        Message::MusicSeek(time) => {
+            if let Some(track) = state.audio_track.as_mut() {
+                track.seek_to(time as f64 / 1000.0);
+            }
+            Task::none()
+        }
+
+        Message::UpdatePlayback => Task::none(),
+
+        Message::SetAudioOffset(o) => {
+            state.audio_offset_ms = o;
+            Task::none()
+        }
+
+        Message::CreateModifier(modifier) => {
+            if let Some(chart) = state.loaded_chart.as_mut() {
+                chart.gimmick.mods.push(modifier);
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SelectModifier(mod_idx) => {
+            state.selected_mod = Some(mod_idx);
+            Task::none()
+        }
+
+        Message::SetModStartBeat(beat) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_mod_idx) = &state.selected_mod
+            {
+                let modifier = &mut chart.gimmick.mods[*selected_mod_idx];
+                modifier.start_beat = beat;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetModDuration(beats) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_mod_idx) = &state.selected_mod
+            {
+                let modifier = &mut chart.gimmick.mods[*selected_mod_idx];
+                modifier.duration = beats;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetModKind(kind) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_mod_idx) = &state.selected_mod
+            {
+                let modifier = &mut chart.gimmick.mods[*selected_mod_idx];
+                modifier.kind = kind;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetModRange(range) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_mod_idx) = &state.selected_mod
+            {
+                let modifier = &mut chart.gimmick.mods[*selected_mod_idx];
+                modifier.start_val = range.start;
+                modifier.end_val = range.end;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetModProxy(proxy) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_mod_idx) = &state.selected_mod
+            {
+                let modifier = &mut chart.gimmick.mods[*selected_mod_idx];
+                modifier.proxy_index = proxy;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetModEase(ease) => {
+            if let Some(chart) = state.loaded_chart.as_mut()
+                && let Some(selected_mod_idx) = &state.selected_mod
+            {
+                let modifier = &mut chart.gimmick.mods[*selected_mod_idx];
+                modifier.ease = ease;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::RemoveMod(mod_idx) => {
+            if let Some(chart) = state.loaded_chart.as_mut() {
+                chart.gimmick.mods.remove(mod_idx);
+                state.selected_mod = None;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetProxyCount(count) => {
+            if let Some(chart) = state.loaded_chart.as_mut() {
+                chart.gimmick.proxies = count;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
+
+        Message::SetGimmickObject(name) => {
+            if let Some(chart) = state.loaded_chart.as_mut() {
+                chart.gimmick.gm_object_name = name;
+                Task::done(Message::ChartHasBeenModified)
+            } else {
+                Task::none()
+            }
+        }
     }
 }
 
@@ -287,7 +421,13 @@ pub fn view(state: &State) -> Element<'_, Message> {
                 ChartPane::NotePane => panes::notes(state),
                 ChartPane::ModPane => panes::mods(state),
                 ChartPane::PerFramePane => panes::per_frames(state),
-                ChartPane::NoteEditPane => panes::note_edit(state),
+                ChartPane::NoteEditPane => {
+                    if state.selected_note.is_none() && state.selected_mod.is_some() {
+                        panes::mod_edit(state)
+                    } else {
+                        panes::note_edit(state)
+                    }
+                }
                 ChartPane::AudioPane => panes::audio(state),
             })
             .style(|theme| container::Style {

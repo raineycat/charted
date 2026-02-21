@@ -1,6 +1,7 @@
 use crate::{
     chart::{
         Chart,
+        gimmick::Modifier,
         note::{Note, NoteExtra},
         note_kind::NoteKind,
     },
@@ -12,6 +13,14 @@ use iced::{
     mouse,
     widget::{self, canvas},
 };
+
+const MOD_RADIUS: f32 = 5.0;
+
+pub struct NoteCanvasState<'a> {
+    pub chart: &'a Chart,
+    pub music_pos: Option<f32>,
+    pub music_offset: f32,
+}
 
 pub struct NoteDrawState {
     scroll_pos: f32,
@@ -26,6 +35,7 @@ pub struct NoteDrawState {
     current_note_kind: NoteKind,
 
     show_mod_layer: bool,
+    seeking: bool,
 }
 
 impl Default for NoteDrawState {
@@ -43,11 +53,12 @@ impl Default for NoteDrawState {
             current_note_kind: NoteKind::Chip,
 
             show_mod_layer: false,
+            seeking: false,
         }
     }
 }
 
-impl canvas::Program<Message> for Chart {
+impl canvas::Program<Message> for NoteCanvasState<'_> {
     type State = NoteDrawState;
 
     fn update(
@@ -108,6 +119,7 @@ impl canvas::Program<Message> for Chart {
             iced::Event::Keyboard(iced::keyboard::Event::ModifiersChanged(modifiers)) => {
                 state.place_notes = modifiers.contains(Modifiers::SHIFT);
                 state.disable_snapping = state.place_notes && modifiers.contains(Modifiers::ALT);
+                state.seeking = modifiers.contains(Modifiers::CTRL);
             }
 
             iced::Event::Mouse(iced::mouse::Event::WheelScrolled { delta }) => {
@@ -118,16 +130,24 @@ impl canvas::Program<Message> for Chart {
             }
 
             iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
-                if let Some(note_idx) = get_hovered_note(&self, &state, &cursor, bounds) {
+                if !state.show_mod_layer
+                    && let Some(note_idx) = get_hovered_note(&self.chart, &state, &cursor, bounds)
+                {
                     return Some(widget::Action::publish(Message::SelectNote(note_idx)));
-                } else if state.place_notes
-                    && let Some(beat) = mouse_y_to_beat(&self, &state, &cursor, bounds)
+                } else if state.show_mod_layer
+                    && let Some(mod_idx) = get_hovered_mod(&self.chart, &state, &cursor, bounds)
+                {
+                    log::debug!("Select mod: {mod_idx}");
+                    return Some(widget::Action::publish(Message::SelectModifier(mod_idx)));
+                } else if !state.show_mod_layer
+                    && state.place_notes
+                    && let Some(beat) = mouse_y_to_beat(&self.chart, &state, &cursor, bounds)
                     && let Some(lane) = mouse_x_to_lane(&state, &cursor, bounds)
                 {
                     let snapped_time = if state.disable_snapping {
-                        self.bpm_handler.time_from_beat(beat)
+                        self.chart.bpm_handler.time_from_beat(beat)
                     } else {
-                        self.bpm_handler.time_from_beat(beat.round())
+                        self.chart.bpm_handler.time_from_beat(beat.round())
                     };
                     match snapped_time {
                         Some(t) => {
@@ -139,14 +159,33 @@ impl canvas::Program<Message> for Chart {
                         }
                         None => {}
                     }
+                } else if state.show_mod_layer
+                    && state.place_notes
+                    && let Some(beat) = mouse_y_to_beat(&self.chart, state, &cursor, bounds)
+                {
+                    return Some(widget::Action::publish(Message::CreateModifier(Modifier {
+                        start_beat: beat,
+                        ..Default::default()
+                    })));
+                } else if cursor.is_over(bounds) && state.seeking {
+                    if let Some(seek_pos) = mouse_y_to_time(state, &cursor, bounds) {
+                        log::info!("Seeking to: {seek_pos}");
+                        return Some(widget::Action::publish(Message::MusicSeek(seek_pos)));
+                    }
                 } else if cursor.is_over(bounds) {
                     return Some(widget::Action::publish(Message::DeselectNote));
                 }
             }
 
             iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Right)) => {
-                if let Some(note_idx) = get_hovered_note(&self, &state, &cursor, bounds) {
+                if !state.show_mod_layer
+                    && let Some(note_idx) = get_hovered_note(&self.chart, &state, &cursor, bounds)
+                {
                     return Some(widget::Action::publish(Message::RemoveNote(note_idx)));
+                } else if state.show_mod_layer
+                    && let Some(mod_idx) = get_hovered_mod(&self.chart, &state, &cursor, bounds)
+                {
+                    return Some(widget::Action::publish(Message::RemoveMod(mod_idx)));
                 }
             }
 
@@ -156,7 +195,7 @@ impl canvas::Program<Message> for Chart {
         let lane_percent: f32 = 0.5;
         state.lane_width = (bounds.width * lane_percent) / 4.0;
         state.gutter_width = bounds.width * (1.0 - lane_percent);
-        Some(widget::Action::request_redraw())
+        Some(widget::Action::publish(Message::UpdatePlayback))
     }
 
     fn draw(
@@ -184,7 +223,7 @@ impl canvas::Program<Message> for Chart {
 
         let mut marker_beat: f32 = 0.0;
         loop {
-            let time = match self.bpm_handler.time_from_beat(marker_beat) {
+            let time = match self.chart.bpm_handler.time_from_beat(marker_beat) {
                 Some(t) => t,
                 None => break,
             };
@@ -211,7 +250,7 @@ impl canvas::Program<Message> for Chart {
         let earliest_visible_time = (0.0 - state.scroll_pos) / state.units_per_ms;
         let latest_visible_time = (bounds.height - state.scroll_pos) / state.units_per_ms;
 
-        for note in &self.notes {
+        for note in &self.chart.notes {
             if note.time > latest_visible_time {
                 continue;
             }
@@ -233,15 +272,16 @@ impl canvas::Program<Message> for Chart {
             frame.fill_rectangle(iced::Point::default(), bounds.size(), translucent_fill);
 
             let mut tracker = ModTracker::new();
-            const MOD_RADIUS: f32 = 5.0;
 
-            for modifier in &self.gimmick.mods {
+            for modifier in &self.chart.gimmick.mods {
                 let mod_time = self
+                    .chart
                     .bpm_handler
                     .time_from_beat(modifier.start_beat)
                     .unwrap_or(-1.0);
 
                 let end_time = self
+                    .chart
                     .bpm_handler
                     .time_from_beat(modifier.start_beat + modifier.duration)
                     .unwrap_or(-1.0);
@@ -272,6 +312,18 @@ impl canvas::Program<Message> for Chart {
 
                 tracker.add(modifier.start_beat, modifier.start_beat + modifier.duration);
             }
+        }
+
+        if let Some(music_pos) = self.music_pos {
+            let line_y = (music_pos + self.music_offset) * state.units_per_ms + state.scroll_pos;
+            let line = canvas::Path::line(
+                iced::Point::new(0.0, line_y),
+                iced::Point::new(bounds.width, line_y),
+            );
+            let stroke = canvas::Stroke::default()
+                .with_color(color!(0xFF00FF))
+                .with_width(3.0);
+            frame.stroke(&line, stroke);
         }
 
         vec![frame.into_geometry()]
@@ -344,14 +396,53 @@ fn get_hovered_note(
     None
 }
 
+fn get_hovered_mod(
+    chart: &Chart,
+    state: &NoteDrawState,
+    cursor: &mouse::Cursor,
+    bounds: Rectangle<f32>,
+) -> Option<usize> {
+    let mut tracker = ModTracker::new();
+    let mouse = cursor.position_in(bounds)?;
+
+    for i in 0..chart.gimmick.mods.len() {
+        let modifier = &chart.gimmick.mods[i];
+        let mod_time = chart
+            .bpm_handler
+            .time_from_beat(modifier.start_beat)
+            .unwrap_or(-1.0);
+
+        let offset_x =
+            MOD_RADIUS + tracker.count_at_beat(modifier.start_beat) as f32 * MOD_RADIUS * 3.0;
+        let start_point =
+            iced::Point::new(offset_x, mod_time * state.units_per_ms + state.scroll_pos);
+
+        if mouse.distance(start_point) <= MOD_RADIUS {
+            return Some(i);
+        }
+
+        tracker.add(modifier.start_beat, modifier.start_beat + modifier.duration);
+    }
+
+    None
+}
+
+fn mouse_y_to_time(
+    state: &NoteDrawState,
+    cursor: &mouse::Cursor,
+    bounds: Rectangle<f32>,
+) -> Option<f32> {
+    let mouse = cursor.position_in(bounds)?;
+    Some((mouse.y - state.scroll_pos) / state.units_per_ms)
+}
+
 fn mouse_y_to_beat(
     chart: &Chart,
     state: &NoteDrawState,
     cursor: &mouse::Cursor,
     bounds: Rectangle<f32>,
 ) -> Option<f32> {
-    let mouse = cursor.position_in(bounds)?;
-    let time = (mouse.y - state.scroll_pos) / state.units_per_ms;
+    let time = mouse_y_to_time(state, cursor, bounds)?;
     chart.bpm_handler.beat_from_time(time)
 }
 

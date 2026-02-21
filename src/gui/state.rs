@@ -1,9 +1,9 @@
-use std::path::PathBuf;
+use std::{ops, path::PathBuf, time::Instant};
 
 use iced::widget::pane_grid;
 use kira::sound::static_sound;
 
-use crate::chart::{Chart, note_kind::NoteKind};
+use crate::chart::{Chart, easing::Easing, gimmick::Modifier, note_kind::NoteKind};
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -42,16 +42,35 @@ pub enum Message {
     MusicPlay,
     MusicPause,
     MusicStop,
+    MusicSeek(f32),
+
+    UpdatePlayback,
+    SetAudioOffset(f32),
+
+    CreateModifier(Modifier),
+    SelectModifier(usize),
+    SetModStartBeat(f32),
+    SetModDuration(f32),
+    SetModKind(u8),
+    SetModRange(ops::Range<f32>),
+    SetModProxy(i8),
+    SetModEase(Easing),
+    RemoveMod(usize),
+
+    SetProxyCount(u8),
+    SetGimmickObject(String),
 }
 
 pub struct State {
     pub file_path: Option<PathBuf>,
     pub loaded_chart: Option<Chart>,
     pub selected_note: Option<usize>,
+    pub selected_mod: Option<usize>,
     pub file_modified: bool,
     pub error_msg: Option<String>,
     pub audio_mgr: Option<kira::AudioManager>,
     pub audio_track: Option<static_sound::StaticSoundHandle>,
+    pub audio_offset_ms: f32,
     pub panes: pane_grid::State<ChartPane>,
 }
 
@@ -61,10 +80,12 @@ impl State {
             file_path: None,
             loaded_chart: None,
             selected_note: None,
+            selected_mod: None,
             file_modified: false,
             error_msg: None,
             audio_mgr: None,
             audio_track: None,
+            audio_offset_ms: 0.0,
             panes: State::initial_pane_layout(),
         };
 
@@ -82,11 +103,11 @@ impl State {
             ratio: 0.2,
             a: Box::new(pane_grid::Configuration::Split {
                 axis: pane_grid::Axis::Horizontal,
-                ratio: 0.35,
+                ratio: 0.3,
                 a: Box::new(pane_grid::Configuration::Pane(ChartPane::InfoPane)),
                 b: Box::new(pane_grid::Configuration::Split {
                     axis: pane_grid::Axis::Horizontal,
-                    ratio: 0.6,
+                    ratio: 0.75,
                     a: Box::new(pane_grid::Configuration::Pane(ChartPane::NoteEditPane)),
                     b: Box::new(pane_grid::Configuration::Pane(ChartPane::AudioPane)),
                 }),

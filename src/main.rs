@@ -2,8 +2,9 @@
 
 use std::io;
 
-use crate::gui::state::State;
+use crate::gui::state::{Message, State};
 use iced::window::{self, icon};
+use iced_fonts::LUCIDE_FONT_BYTES;
 use image::ImageReader;
 use log::info;
 
@@ -24,7 +25,12 @@ fn main() -> iced::Result {
         .title("ChartEd")
         .window(window)
         .theme(gui::theme)
+        .font(LUCIDE_FONT_BYTES)
         .window_size(iced::Size::new(1280.0, 720.0))
+        // .subscription(|_state| {
+        //     iced::time::every(iced::time::Duration::from_millis(5))
+        //         .map(|t| Message::UpdatePlayback(t))
+        // })
         .run()
 }
 

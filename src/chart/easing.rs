@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Default)]
+use std::fmt::Display;
+
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum Easing {
     #[default]
     Linear,
@@ -29,52 +31,39 @@ pub enum Easing {
 }
 
 impl Easing {
+    pub const ALL: [Self; 19] = [
+        Self::Linear,
+        Self::OutElastic,
+        Self::InExpo,
+        Self::OutExpo,
+        Self::InOutExpo,
+        Self::InQuad,
+        Self::OutQuad,
+        Self::InOutQuad,
+        Self::InCubic,
+        Self::OutCubic,
+        Self::InOutCubic,
+        Self::OutBack,
+        Self::InSine,
+        Self::OutSine,
+        Self::InOutSine,
+        Self::OutQuart,
+        Self::InOutCirc,
+        Self::InCirc,
+        Self::OutCirc,
+    ];
+
     pub(crate) fn from_byte(b: u8) -> Option<Easing> {
-        match b {
-            1 => Some(Self::Linear),
-            2 => Some(Self::OutElastic),
-            3 => Some(Self::InExpo),
-            4 => Some(Self::OutExpo),
-            5 => Some(Self::InOutExpo),
-            6 => Some(Self::InQuad),
-            7 => Some(Self::OutQuad),
-            8 => Some(Self::InOutQuad),
-            9 => Some(Self::InCubic),
-            10 => Some(Self::OutCubic),
-            11 => Some(Self::InOutCubic),
-            12 => Some(Self::OutBack),
-            13 => Some(Self::InSine),
-            14 => Some(Self::OutSine),
-            15 => Some(Self::InOutSine),
-            16 => Some(Self::OutQuart),
-            17 => Some(Self::InOutCirc),
-            18 => Some(Self::InCirc),
-            19 => Some(Self::OutCirc),
-            _ => None,
-        }
+        Self::ALL.get((b as usize) - 1).cloned()
     }
 
     pub(crate) fn to_byte(&self) -> u8 {
-        match self {
-            Self::Linear => 1,
-            Self::OutElastic => 2,
-            Self::InExpo => 3,
-            Self::OutExpo => 4,
-            Self::InOutExpo => 5,
-            Self::InQuad => 6,
-            Self::OutQuad => 7,
-            Self::InOutQuad => 8,
-            Self::InCubic => 9,
-            Self::OutCubic => 10,
-            Self::InOutCubic => 11,
-            Self::OutBack => 12,
-            Self::InSine => 13,
-            Self::OutSine => 14,
-            Self::InOutSine => 15,
-            Self::OutQuart => 16,
-            Self::InOutCirc => 17,
-            Self::InCirc => 18,
-            Self::OutCirc => 19,
-        }
+        Self::ALL.iter().position(|e| *e == *self).unwrap_or(0) as u8 + 1
+    }
+}
+
+impl Display for Easing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
