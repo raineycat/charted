@@ -14,4 +14,5 @@ Coming soon:
 - Per-frame editing
 - Chart-specific modifiers
 
-![screenshot](screenshot.png)
+![screenshot 1](assets/screenshot1.png)
+![screenshot 2](assets/screenshot2.png)
